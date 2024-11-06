@@ -55,15 +55,20 @@ func (i *Input) Start(persister operator.Persister) error {
 		}
 	}
 
+	subscribtionError := false
+
 	i.subscription = NewSubscription()
 	if err := i.subscription.Open(i.channel, i.startAt, i.bookmark); err != nil {
-		return fmt.Errorf("failed to open subscription: %w", err)
+		i.Logger().Warn("Failed to open subscription, continuing without previous bookmark", zap.Error(err))
+		subscribtionError = true
 	}
 
 	i.publisherCache = newPublisherCache()
 
-	i.wg.Add(1)
-	go i.readOnInterval(ctx)
+	if !subscribtionError {
+		i.wg.Add(1)
+		go i.readOnInterval(ctx)
+	}
 	return nil
 }
 
