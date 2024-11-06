@@ -130,13 +130,15 @@ func (i *Input) Start(persister operator.Persister) error {
 	if i.isRemote() {
 		subscription = NewRemoteSubscription(i.remote.Server)
 	}
+	subscriptionError := false
 
 	if err := subscription.Open(i.startAt, uintptr(i.remoteSessionHandle), i.channel, i.bookmark); err != nil {
 		if isNonTransientError(err) {
 			if i.isRemote() {
 				return fmt.Errorf("failed to open subscription for remote server %s: %w", i.remote.Server, err)
 			}
-			return fmt.Errorf("failed to open local subscription: %w", err)
+			i.Logger().Warn("Failed to open local subscription, continuing", zap.Error(err))
+			subscriptionError = true
 		}
 		if i.isRemote() {
 			i.Logger().Warn("Transient error opening subscription for remote server, continuing", zap.String("server", i.remote.Server), zap.Error(err))
@@ -146,8 +148,10 @@ func (i *Input) Start(persister operator.Persister) error {
 	}
 
 	i.subscription = subscription
-	i.wg.Add(1)
-	go i.readOnInterval(ctx)
+	if !subscriptionError {
+		i.wg.Add(1)
+		go i.readOnInterval(ctx)
+	}
 
 	return nil
 }
